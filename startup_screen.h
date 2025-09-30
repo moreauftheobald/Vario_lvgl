@@ -175,6 +175,9 @@ void destroy_startup_screen() {
 
   lv_obj_clean(lv_scr_act());
 
+  lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(lv_scr_act(), LV_OPA_COVER, 0);
+
   lvgl_port_unlock();
 }
 

@@ -7,10 +7,11 @@
 #include <lvgl.h>
 #include "lvgl_v8_port.h"
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include "metar_task.h"
 #include "startup_screen.h"
 #include "bmp390_task.h"
-#include "ui.h"  // AJOUTER CETTE LIGNE
+#include "ui.h"
 #include <esp_task_wdt.h>
 
 using namespace esp_panel::drivers;
@@ -163,7 +164,8 @@ bool init_display() {
 
   auto lcd_bus = lcd->getBus();
   if (lcd_bus && lcd_bus->getBasicAttributes().type == ESP_PANEL_BUS_TYPE_RGB) {
-    static_cast<BusRGB*>(lcd_bus)->configRGB_BounceBufferSize(lcd->getFrameWidth() * 10);
+    // Bounce buffer augmenté AVANT WiFi
+    static_cast<BusRGB*>(lcd_bus)->configRGB_BounceBufferSize(lcd->getFrameWidth() * 20);
   }
 
   if (!board->begin()) {
@@ -202,6 +204,9 @@ bool init_wifi(const char* ssid, const char* password) {
   WiFi.mode(WIFI_OFF);
   delay(500);
   esp_task_wdt_reset();
+
+  // Réduire consommation mémoire WiFi
+  esp_wifi_set_ps(WIFI_PS_MIN_MODEM);  // Mode économie minimale
 
   // Demarrer
   WiFi.mode(WIFI_STA);
@@ -466,6 +471,16 @@ bool init_system() {
 
   // 14. Retirer watchdog de la loop
   esp_task_wdt_delete(NULL);
+
+  // Couper WiFi pour libérer PSRAM et éviter conflit avec RGB LCD
+  if (wifi_connected) {
+#ifdef DEBUG_MODE
+    ESP_LOGI(INIT_TAG, "Arret WiFi pour liberer PSRAM");
+#endif
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
+  }
 
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "Init terminee");

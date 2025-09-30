@@ -25,6 +25,7 @@ void show_main_interface() {
   lv_obj_set_style_bg_color(main_container, lv_color_hex(0x0a0a0a), 0);
   lv_obj_set_style_border_width(main_container, 0, 0);
   lv_obj_set_style_pad_all(main_container, 20, 0);
+  lv_obj_set_style_radius(main_container, 0, 0);
 
   // Titre
   lv_obj_t* title = lv_label_create(main_container);
@@ -76,6 +77,9 @@ void show_test_screen() {
   lvgl_port_lock(-1);
 
   lv_obj_clean(lv_scr_act());
+
+  lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(lv_scr_act(), LV_OPA_COVER, 0);
 
   lv_obj_t* container = lv_obj_create(lv_scr_act());
   lv_obj_set_size(container, LV_HOR_RES, LV_VER_RES);
