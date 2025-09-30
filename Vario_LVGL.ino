@@ -9,7 +9,7 @@
 #include "init.h"
 #include "metar_task.h"
 
-static const char* MAIN_TAG = "MAIN";
+// static const char* MAIN_TAG = "MAIN";
 
 void setup() {
   // Initialisation port serie et logs

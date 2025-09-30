@@ -21,8 +21,6 @@ static const char* INIT_TAG = "INIT";
 Board* board = nullptr;
 LCD* lcd = nullptr;
 
-#define DEFAULT_LATITUDE 49.3283
-#define DEFAULT_LONGITUDE 6.0627
 // =============================================================================
 // FONCTIONS D'INITIALISATION
 // =============================================================================

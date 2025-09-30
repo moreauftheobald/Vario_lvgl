@@ -39,6 +39,24 @@
 #define SPEED_HISTORY_SIZE 100
 #define WIND_HISTORY_SIZE 50
 
+// Position par defaut : Hayange, Moselle, France
+#define DEFAULT_LATITUDE 49.3283  // Hayange latitude
+#define DEFAULT_LONGITUDE 6.0627  // Hayange longitude
+
+// API METAR
+#define METAR_API_URL "https://aviationweather.gov/api/data/metar"
+#define METAR_TIMEOUT_MS 10000
+
+//BMP 390 
+#define BMP390_I2C_SDA 8
+#define BMP390_I2C_SCL 9
+#define BMP390_I2C_FREQ 400000
+#define BMP390_TASK_STACK 4096
+#define BMP390_TASK_PRIORITY 4
+#define BMP390_UPDATE_RATE_MS 100  // 10Hz
+
+#define SEALEVELPRESSURE_HPA (1013.25)
+
 // =============================================================================
 // STRUCTURES DE DONNEES
 // =============================================================================
@@ -92,6 +110,8 @@ inline uint32_t system_start_time = 0;
 inline bool system_initialized = false;
 inline bool wifi_connected = false;
 inline bool metar_qnh_updated = false;
+
+static const char* MAIN_TAG = "MAIN";
 
 // =============================================================================
 // FONCTIONS UTILITAIRES

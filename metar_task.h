@@ -7,18 +7,6 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-// Position par defaut : Hayange, Moselle, France
-#ifndef DEFAULT_LATITUDE
-#define DEFAULT_LATITUDE 49.3283
-#endif
-#ifndef DEFAULT_LONGITUDE
-#define DEFAULT_LONGITUDE 6.0627
-#endif
-
-// API METAR
-#define METAR_API_URL "https://aviationweather.gov/api/data/metar"
-#define METAR_TIMEOUT_MS 10000
-
 // =============================================================================
 // TACHE METAR
 // =============================================================================

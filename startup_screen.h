@@ -5,10 +5,6 @@
 #include "global.h"
 #include "lang.h"  // Ajout du systÃ¨me de traduction
 
-// Position par defaut : Hayange, Moselle, France
-#define DEFAULT_LATITUDE 49.3283  // Hayange latitude
-#define DEFAULT_LONGITUDE 6.0627  // Hayange longitude
-
 // Structure pour gerer l'ecran de demarrage
 typedef struct {
   lv_obj_t* container;
