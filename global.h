@@ -55,6 +55,8 @@ typedef struct {
 
 // Structure donnees de vol
 typedef struct {
+  float altitude_qne;
+  float altitude_qnh;
   float qnh_pressure;
   float temperature;
   float pressure_hpa;

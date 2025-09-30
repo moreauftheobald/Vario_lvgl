@@ -9,6 +9,7 @@
 #include <WiFi.h>
 #include "metar_task.h"
 #include "startup_screen.h"
+#include "bmp390_task.h"
 #include "ui.h"  // AJOUTER CETTE LIGNE
 #include <esp_task_wdt.h>
 
@@ -141,7 +142,7 @@ bool init_display() {
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "Init ecran...");
 #endif
-  
+
   board = new Board();
   if (!board) {
 #ifdef DEBUG_MODE
@@ -149,17 +150,17 @@ bool init_display() {
 #endif
     return false;
   }
-  
+
   board->init();
   lcd = board->getLCD();
-  
+
   if (!lcd) {
 #ifdef DEBUG_MODE
     ESP_LOGE(INIT_TAG, "Erreur LCD");
 #endif
     return false;
   }
-  
+
   lcd->configFrameBufferNumber(LVGL_PORT_DISP_BUFFER_NUM);
 
   auto lcd_bus = lcd->getBus();
@@ -173,14 +174,14 @@ bool init_display() {
 #endif
     return false;
   }
-  
+
   if (!lvgl_port_init(board->getLCD(), board->getTouch())) {
 #ifdef DEBUG_MODE
     ESP_LOGE(INIT_TAG, "%s", tr(KEY_ERROR_LVGL_INIT));
 #endif
     return false;
   }
-  
+
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "Ecran OK");
 #endif
@@ -194,7 +195,7 @@ bool init_wifi(const char* ssid, const char* password) {
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "Init WiFi: '%s'", ssid);
 #endif
-  
+
   update_startup_status(tr(KEY_WIFI_CONNECTING));
   add_startup_log(tr(KEY_LOG_WIFI_ATTEMPT));
   update_startup_progress(35);
@@ -203,7 +204,7 @@ bool init_wifi(const char* ssid, const char* password) {
   WiFi.mode(WIFI_OFF);
   delay(500);
   esp_task_wdt_reset();
-  
+
   // Demarrer
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
@@ -214,27 +215,27 @@ bool init_wifi(const char* ssid, const char* password) {
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "Connexion...");
 #endif
-  
+
   WiFi.begin(ssid, password);
 
   // Attente (30 secondes max)
   int attempts = 0;
   char status_text[64];
-  
+
   while (WiFi.status() != WL_CONNECTED && attempts < 30) {
     delay(1000);
     attempts++;
     esp_task_wdt_reset();
-    
+
 #ifdef DEBUG_MODE
     if (attempts % 5 == 0) {  // Log toutes les 5 secondes
       ESP_LOGI(INIT_TAG, "Tentative %d/30 - Status: %d", attempts, WiFi.status());
     }
 #endif
-    
+
     // Animation
     uint8_t dots = (attempts % 4);
-    snprintf(status_text, sizeof(status_text), "%s%.*s", 
+    snprintf(status_text, sizeof(status_text), "%s%.*s",
              tr(KEY_WIFI_CONNECTING), dots + 1, "....");
     update_startup_status(status_text);
     update_startup_progress(35 + attempts);
@@ -243,30 +244,30 @@ bool init_wifi(const char* ssid, const char* password) {
   // Resultat
   if (WiFi.status() == WL_CONNECTED) {
     wifi_connected = true;
-    
+
 #ifdef DEBUG_MODE
     ESP_LOGI(INIT_TAG, "WiFi CONNECTE");
     ESP_LOGI(INIT_TAG, "IP: %s", WiFi.localIP().toString().c_str());
     ESP_LOGI(INIT_TAG, "RSSI: %d dBm", WiFi.RSSI());
 #endif
-    
+
     char log[128];
-    snprintf(log, sizeof(log), tr(KEY_LOG_WIFI_CONNECTED), 
+    snprintf(log, sizeof(log), tr(KEY_LOG_WIFI_CONNECTED),
              WiFi.localIP().toString().c_str());
     add_startup_log(log);
     update_startup_progress(65);
-    
+
     return true;
   } else {
     wifi_connected = false;
-    
+
 #ifdef DEBUG_MODE
     ESP_LOGW(INIT_TAG, "WiFi ECHEC - Status: %d", WiFi.status());
 #endif
-    
+
     add_startup_log(tr(KEY_STATUS_WIFI_OFFLINE_MODE));
     update_startup_progress(65);
-    
+
     return false;
   }
 }
@@ -298,13 +299,13 @@ bool create_tasks() {
     add_startup_log(tr(KEY_ERROR_METAR_TASK), true);
     return false;
   }
-  
+
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "%s", tr(KEY_LOG_METAR_TASK));
 #endif
   add_startup_log(tr(KEY_LOG_METAR_TASK));
   update_startup_progress(75);
-  
+
   return true;
 }
 
@@ -362,16 +363,36 @@ bool init_system() {
     return false;
   }
 
-  // 6. WiFi
+  // 6. Capteur BMP390
+#ifdef DEBUG_MODE
+  ESP_LOGI(INIT_TAG, "Init BMP390...");
+#endif
+  add_startup_log("Init BMP390");
+  update_startup_progress(35);
+
+  if (init_bmp390()) {
+    add_startup_log("BMP390 OK");
+  } else {
+    add_startup_log("BMP390 echec", true);
+  }
+
+  // 7. WiFi
   init_wifi(WIFI_SSID, WIFI_PASSWORD);
 
-  // 7. Taches
+  // 8. Taches
   if (!create_tasks()) {
     cleanup_buffers();
     return false;
   }
 
-  // 8. Attendre METAR (5 secondes max)
+  // 9. Tache BMP390
+  if (bmp390_initialized) {
+    if (create_bmp390_task()) {
+      add_startup_log("Tache BMP390 OK");
+    }
+  }
+
+  // 10. Attendre METAR (5 secondes max)
   update_startup_status(tr(KEY_METAR_RETRIEVING));
   add_startup_log(tr(KEY_LOG_SEARCHING_METAR));
   update_startup_progress(80);
@@ -382,7 +403,7 @@ bool init_system() {
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 
-  // 9. Finalisation
+  // 11. Finalisation
   system_initialized = true;
   update_startup_progress(90);
 
@@ -394,7 +415,7 @@ bool init_system() {
   } else {
     add_startup_log(tr(KEY_LOG_METAR_UNAVAILABLE));
   }
-  
+
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "=== SYSTEME PRET ===");
   ESP_LOGI(INIT_TAG, "QNH: %.1f hPa (%s)",
@@ -402,50 +423,50 @@ bool init_system() {
            metar_qnh_updated ? "METAR" : "Standard");
 #endif
 
-  // 10. Animation fin (3 secondes)
+  // 12. Animation fin (3 secondes)
   uint32_t anim_start = millis();
   uint32_t wait_seconds = 3;
-  
+
   update_startup_status(tr(KEY_SYSTEM_READY));
   update_startup_progress(100);
-  
+
   lvgl_port_lock(-1);
   lv_obj_set_style_text_color(startup_screen->status_label, lv_color_hex(0x00ff88), 0);
   lvgl_port_unlock();
-  
+
   add_startup_log(tr(KEY_LOG_STARTUP_SUCCESS));
-  
+
   // Compte a rebours
   char countdown_text[128];
   while ((millis() - anim_start) < (wait_seconds * 1000)) {
     uint32_t elapsed_s = (millis() - anim_start) / 1000;
     uint32_t remaining_s = wait_seconds - elapsed_s;
-    
+
     if (remaining_s > 0) {
-      snprintf(countdown_text, sizeof(countdown_text), 
+      snprintf(countdown_text, sizeof(countdown_text),
                tr(KEY_LAUNCHING_INTERFACE), remaining_s);
       update_startup_status(countdown_text);
     }
-    
+
     esp_task_wdt_reset();
     vTaskDelay(pdMS_TO_TICKS(200));
   }
-  
+
   update_startup_status(tr(KEY_MAIN_INTERFACE_LAUNCH));
   esp_task_wdt_reset();
   vTaskDelay(pdMS_TO_TICKS(200));
 
-  // 11. Transition vers interface principale
+  // 13. Transition vers interface principale
   esp_task_wdt_reset();
   destroy_startup_screen();
-  
+
   esp_task_wdt_reset();
   vTaskDelay(pdMS_TO_TICKS(200));
-  
+
   esp_task_wdt_reset();
   show_main_interface();
 
-  // 12. Retirer watchdog de la loop
+  // 14. Retirer watchdog de la loop
   esp_task_wdt_delete(NULL);
 
 #ifdef DEBUG_MODE

@@ -16,10 +16,8 @@
 void show_main_interface() {
   lvgl_port_lock(-1);
 
-  // Nettoyer l'ecran
   lv_obj_clean(lv_scr_act());
 
-  // Container principal
   lv_obj_t* main_container = lv_obj_create(lv_scr_act());
   lv_obj_set_size(main_container, LV_HOR_RES, LV_VER_RES);
   lv_obj_set_pos(main_container, 0, 0);
@@ -28,41 +26,45 @@ void show_main_interface() {
   lv_obj_set_style_border_width(main_container, 0, 0);
   lv_obj_set_style_pad_all(main_container, 20, 0);
 
-  // ===== TITRE =====
+  // Titre
   lv_obj_t* title = lv_label_create(main_container);
   lv_label_set_text(title, tr(KEY_VARIOMETER_ACTIVE));
   lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
   lv_obj_set_style_text_color(title, lv_color_hex(0x00ff88), 0);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
 
-  // ===== INFORMATIONS PRINCIPALES =====
-  lv_obj_t* info_label = lv_label_create(main_container);
-  char info_text[512];
+  // Donnees BMP390
+  lv_obj_t* bmp_label = lv_label_create(main_container);
+  char bmp_text[256];
   
-  snprintf(info_text, sizeof(info_text),
-           "QNH: %.1f hPa\nStation: %s (%.1f km)\nWiFi: %s\n",
-           flight_data.qnh_pressure,
-           metar_data.station_id,
-           metar_data.distance_km,
-           wifi_connected ? "Connecte" : "Hors ligne");
+  snprintf(bmp_text, sizeof(bmp_text),
+           "Temperature: %.1f C\nPression: %.1f hPa\nAltitude QNH: %.0f m\nAltitude QNE: %.0f m",
+           flight_data.temperature,
+           flight_data.pressure_hpa,
+           flight_data.altitude_qnh,
+           flight_data.altitude_qne);
 
-  lv_label_set_text(info_label, info_text);
-  lv_obj_set_style_text_font(info_label, &lv_font_montserrat_16, 0);
-  lv_obj_set_style_text_color(info_label, lv_color_hex(0xffffff), 0);
-  lv_obj_align(info_label, LV_ALIGN_TOP_LEFT, 0, 0);
+  lv_label_set_text(bmp_label, bmp_text);
+  lv_obj_set_style_text_font(bmp_label, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_color(bmp_label, lv_color_hex(0xffffff), 0);
+  lv_obj_align(bmp_label, LV_ALIGN_TOP_LEFT, 0, 0);
 
-  // ===== METAR BRUT =====
+  // METAR
   lv_obj_t* metar_label = lv_label_create(main_container);
   lv_obj_set_width(metar_label, LV_HOR_RES - 40);
   lv_label_set_long_mode(metar_label, LV_LABEL_LONG_WRAP);
   
   char metar_text[300];
-  snprintf(metar_text, sizeof(metar_text), "METAR:\n%s", metar_data.raw_metar);
+  snprintf(metar_text, sizeof(metar_text), 
+           "QNH: %.1f hPa (%s)\nMETAR: %s",
+           flight_data.qnh_pressure,
+           metar_data.station_id,
+           metar_data.raw_metar);
   
   lv_label_set_text(metar_label, metar_text);
   lv_obj_set_style_text_font(metar_label, &lv_font_montserrat_12, 0);
   lv_obj_set_style_text_color(metar_label, lv_color_hex(0x88ff88), 0);
-  lv_obj_align(metar_label, LV_ALIGN_TOP_LEFT, 0, 120);
+  lv_obj_align(metar_label, LV_ALIGN_TOP_LEFT, 0, 150);
 
   lvgl_port_unlock();
 }
