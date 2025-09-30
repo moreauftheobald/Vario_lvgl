@@ -165,7 +165,7 @@ bool init_display() {
   auto lcd_bus = lcd->getBus();
   if (lcd_bus && lcd_bus->getBasicAttributes().type == ESP_PANEL_BUS_TYPE_RGB) {
     // Bounce buffer augmenté AVANT WiFi
-    static_cast<BusRGB*>(lcd_bus)->configRGB_BounceBufferSize(lcd->getFrameWidth() * 20);
+    static_cast<BusRGB*>(lcd_bus)->configRGB_BounceBufferSize(lcd->getFrameWidth() * 30);
   }
 
   if (!board->begin()) {
