@@ -154,7 +154,7 @@ void process_bno08x_data(uint32_t current_time) {
   
   // Projection de l'acceleration lineaire sur l'axe vertical
   // AccelVertical = AccelLineaire . VerticalUnitaire
-  bno08x_data.vertical_accel = dot_product(
+  bno08x_data.vertical_accel = -dot_product(  // INVERSION DU SIGNE
     bno08x_data.linear_accel_x, bno08x_data.linear_accel_y, bno08x_data.linear_accel_z,
     vertical_x, vertical_y, vertical_z
   );
@@ -313,7 +313,7 @@ void bno08x_task(void* parameter) {
       if (bno08x_data.valid) {
         ESP_LOGI("BNO08x", "Gravity:(%.2f,%.2f,%.2f)", 
                  bno08x_data.gravity_x, bno08x_data.gravity_y, bno08x_data.gravity_z);
-        ESP_LOGI("BNO08x", "Vario:%.2f G:%.2f AccZ:%.2f", 
+        ESP_LOGI("BNO08x", "Vario:%.1f G:%.2f AccZ:%.2f",  // CHANGE: %.2f -> %.1f
                  bno08x_data.vario_imu, bno08x_data.g_force,
                  bno08x_data.vertical_accel);
       }

@@ -5,7 +5,7 @@
 //#define CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM 32
 //#define CONFIG_ESP_WIFI_RX_BA_WIN 16
 
-#define DEBUG_MODE (1)
+//#define DEBUG_MODE (0)
 #include <Arduino.h>
 #include <esp_log.h>
 #include "global.h"
@@ -16,6 +16,7 @@
 
 flight_data_t flight_data = {0};
 metar_data_t metar_data = {0};
+kalman_data_t kalman_data = {0};
 
 rolling_buffer_t altitude_history = {0};
 rolling_buffer_t vario_history = {0};

@@ -85,6 +85,13 @@ typedef struct {
   uint32_t current_time;
 } flight_data_t;
 
+// Structure donnees Kalman (NOUVEAU)
+typedef struct {
+  float altitude_filtered;
+  float vario_filtered;
+  bool kalman_active;
+} kalman_data_t;
+
 // Buffer circulaire
 typedef struct {
   float* data;
@@ -99,6 +106,7 @@ typedef struct {
 
 extern flight_data_t flight_data;
 extern metar_data_t metar_data;
+extern kalman_data_t kalman_data;  // NOUVEAU
 
 extern rolling_buffer_t altitude_history;
 extern rolling_buffer_t vario_history;

@@ -12,6 +12,7 @@
 #include "startup_screen.h"
 #include "bmp390_task.h"
 #include "bno08x_task.h"
+#include "kalman_task.h"
 #include "ui.h"
 #include "ui_task.h"
 #include <esp_task_wdt.h>
@@ -447,7 +448,15 @@ bool init_system() {
       add_startup_log("Tache BNO08x OK");
     }
   }
-  
+
+  // Tache Kalman
+  if (bmp390_initialized && bno08x_initialized) {
+    if (create_kalman_task()) {
+      add_startup_log("Tache Kalman OK");
+      update_startup_progress(82);
+    }
+  }
+
   // 12. Attendre METAR (5 secondes max)
   update_startup_status(tr(KEY_METAR_RETRIEVING));
   add_startup_log(tr(KEY_LOG_SEARCHING_METAR));

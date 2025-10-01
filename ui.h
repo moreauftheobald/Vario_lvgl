@@ -3,7 +3,7 @@
 
 #include "global.h"
 #include "lang.h"
-#include "bno08x_task.h"  // AJOUTER CETTE LIGNE
+#include "bno08x_task.h"
 #include <lvgl.h>
 #include "lvgl_v8_port.h"
 
@@ -13,7 +13,8 @@
 
 static lv_obj_t* main_container = NULL;
 static lv_obj_t* data_label = NULL;
-static lv_obj_t* imu_label = NULL;  // NOUVELLE ZONE POUR IMU
+static lv_obj_t* imu_label = NULL;
+static lv_obj_t* kalman_label = NULL;  // NOUVEAU
 static lv_obj_t* metar_label = NULL;
 
 // Declaration forward
@@ -51,13 +52,21 @@ void show_main_interface() {
   lv_obj_set_style_text_color(data_label, lv_color_hex(0xffffff), 0);
   lv_obj_align(data_label, LV_ALIGN_TOP_LEFT, 0, 50);
 
-  // Zone IMU (BNO08x) - NOUVEAU
+  // Zone IMU (BNO08x)
   imu_label = lv_label_create(main_container);
   lv_obj_set_width(imu_label, LV_HOR_RES - 40);
   lv_label_set_long_mode(imu_label, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_font(imu_label, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(imu_label, lv_color_hex(0xffaa00), 0);  // Orange
   lv_obj_align(imu_label, LV_ALIGN_TOP_LEFT, 0, 180);
+
+  // Zone KALMAN (NOUVEAU)
+  kalman_label = lv_label_create(main_container);
+  lv_obj_set_width(kalman_label, LV_HOR_RES - 40);
+  lv_label_set_long_mode(kalman_label, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_font(kalman_label, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_color(kalman_label, lv_color_hex(0x00ffff), 0);  // Cyan
+  lv_obj_align(kalman_label, LV_ALIGN_TOP_LEFT, 0, 310);
 
   // Zone METAR
   metar_label = lv_label_create(main_container);
@@ -76,15 +85,13 @@ void show_main_interface() {
 /**
  * @brief Met a jour les donnees affichees
  */
-/**
- * @brief Met a jour les donnees affichees
- */
 void update_main_interface() {
-  if (!data_label || !imu_label || !metar_label) return;
+  if (!data_label || !imu_label || !kalman_label || !metar_label) return;
 
   if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
     char data_text[512];
     char imu_text[512];
+    char kalman_text[512];
     char metar_text[256];
 
     // Formatage des donnees de vol (BMP390)
@@ -97,7 +104,7 @@ void update_main_interface() {
              "Altitude QNH: %.0f m\n"
              "Altitude QNE: %.0f m\n"
              "Hauteur sol: %.0f m\n"
-             "Vario BMP: %s%.2f m/s",
+             "Vario BMP: %s%.1f m/s",  // CHANGE: %.2f -> %.1f
              flight_data.temperature,
              flight_data.pressure_hpa,
              flight_data.altitude_qnh,
@@ -113,7 +120,7 @@ void update_main_interface() {
 
       snprintf(imu_text, sizeof(imu_text),
                "=== BNO08x IMU ===\n"
-               "Vario IMU: %s%.2f m/s\n"
+               "Vario IMU: %s%.1f m/s\n"  // CHANGE: %.2f -> %.1f
                "G-metre: %.2f G\n"
                "Accel verticale: %.2f m/s2",
                vario_imu_sign,
@@ -124,6 +131,23 @@ void update_main_interface() {
       snprintf(imu_text, sizeof(imu_text),
                "=== BNO08x IMU ===\n"
                "En attente donnees...");
+    }
+
+    // Formatage donnees KALMAN
+    if (kalman_data.kalman_active) {
+      const char* vario_kalman_sign = (kalman_data.vario_filtered >= 0) ? "+" : "";
+      
+      snprintf(kalman_text, sizeof(kalman_text),
+               "=== FILTRE KALMAN ===\n"
+               "Altitude filtree: %.0f m\n"
+               "Vario filtre: %s%.1f m/s",  // CHANGE: %.2f -> %.1f
+               kalman_data.altitude_filtered,
+               vario_kalman_sign,
+               kalman_data.vario_filtered);
+    } else {
+      snprintf(kalman_text, sizeof(kalman_text),
+               "=== FILTRE KALMAN ===\n"
+               "Initialisation...");
     }
 
     // Formatage METAR
@@ -139,6 +163,7 @@ void update_main_interface() {
     lvgl_port_lock(-1);
     lv_label_set_text(data_label, data_text);
     lv_label_set_text(imu_label, imu_text);
+    lv_label_set_text(kalman_label, kalman_text);
     lv_label_set_text(metar_label, metar_text);
     lvgl_port_unlock();
   }
