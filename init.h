@@ -189,7 +189,7 @@ bool init_display() {
 }
 
 /**
- * @brief Initialise WiFi - Sans scan
+ * @brief Initialise WiFi - Version optimisee
  */
 bool init_wifi(const char* ssid, const char* password) {
 #ifdef DEBUG_MODE
@@ -200,18 +200,17 @@ bool init_wifi(const char* ssid, const char* password) {
   add_startup_log(tr(KEY_LOG_WIFI_ATTEMPT));
   update_startup_progress(35);
 
-  // Reset WiFi
+  // Configuration WiFi rapide
   WiFi.mode(WIFI_OFF);
-  delay(500);
+  vTaskDelay(pdMS_TO_TICKS(50));  // 50ms suffisant
   esp_task_wdt_reset();
 
-  // Réduire consommation mémoire WiFi
-  esp_wifi_set_ps(WIFI_PS_MIN_MODEM);  // Mode économie minimale
-
-  // Demarrer
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
-  delay(100);
+  WiFi.setAutoReconnect(false);  // Pas besoin, on coupe apres METAR
+  esp_wifi_set_ps(WIFI_PS_NONE);  // Pas d'economie d'energie = connexion rapide
+  
+  vTaskDelay(pdMS_TO_TICKS(50));
   esp_task_wdt_reset();
 
   // Connexion directe
@@ -221,27 +220,30 @@ bool init_wifi(const char* ssid, const char* password) {
 
   WiFi.begin(ssid, password);
 
-  // Attente (30 secondes max)
+  // Attente reduite (10 secondes max)
   int attempts = 0;
+  const int max_attempts = 10;
   char status_text[64];
 
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    delay(1000);
+  while (WiFi.status() != WL_CONNECTED && attempts < max_attempts) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
     attempts++;
     esp_task_wdt_reset();
 
 #ifdef DEBUG_MODE
-    if (attempts % 5 == 0) {  // Log toutes les 5 secondes
-      ESP_LOGI(INIT_TAG, "Tentative %d/30 - Status: %d", attempts, WiFi.status());
+    if (attempts % 3 == 0) {  // Log toutes les 3 secondes
+      ESP_LOGI(INIT_TAG, "Tentative %d/%d - Status: %d", attempts, max_attempts, WiFi.status());
     }
 #endif
 
-    // Animation
+    // Animation (update plus frequente pour compenser timeout reduit)
     uint8_t dots = (attempts % 4);
     snprintf(status_text, sizeof(status_text), "%s%.*s",
              tr(KEY_WIFI_CONNECTING), dots + 1, "....");
     update_startup_status(status_text);
-    update_startup_progress(35 + attempts);
+    
+    // Progress bar adaptee au nouveau timeout
+    update_startup_progress(35 + (attempts * 3));
   }
 
   // Resultat
@@ -249,7 +251,7 @@ bool init_wifi(const char* ssid, const char* password) {
     wifi_connected = true;
 
 #ifdef DEBUG_MODE
-    ESP_LOGI(INIT_TAG, "WiFi CONNECTE");
+    ESP_LOGI(INIT_TAG, "WiFi CONNECTE en %d secondes", attempts);
     ESP_LOGI(INIT_TAG, "IP: %s", WiFi.localIP().toString().c_str());
     ESP_LOGI(INIT_TAG, "RSSI: %d dBm", WiFi.RSSI());
 #endif
@@ -265,7 +267,7 @@ bool init_wifi(const char* ssid, const char* password) {
     wifi_connected = false;
 
 #ifdef DEBUG_MODE
-    ESP_LOGW(INIT_TAG, "WiFi ECHEC - Status: %d", WiFi.status());
+    ESP_LOGW(INIT_TAG, "WiFi ECHEC apres %d secondes - Status: %d", attempts, WiFi.status());
 #endif
 
     add_startup_log(tr(KEY_STATUS_WIFI_OFFLINE_MODE));
@@ -475,11 +477,11 @@ bool init_system() {
   // Couper WiFi pour libérer PSRAM et éviter conflit avec RGB LCD
   if (wifi_connected) {
 #ifdef DEBUG_MODE
-    ESP_LOGI(INIT_TAG, "Arret WiFi pour liberer PSRAM");
+    ESP_LOGI(INIT_TAG, "WiFi maintenu actif (mode economie pour tiles OSM)");
 #endif
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-    delay(100);
+    // Mode economie legere (garde connexion mais reduit conso)
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    WiFi.setSleep(true);
   }
 
 #ifdef DEBUG_MODE

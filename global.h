@@ -90,26 +90,26 @@ typedef struct {
 } rolling_buffer_t;
 
 // =============================================================================
-// VARIABLES GLOBALES
+// VARIABLES GLOBALES (déclarations externes)
 // =============================================================================
 
-inline flight_data_t flight_data;
-inline metar_data_t metar_data;
+extern flight_data_t flight_data;
+extern metar_data_t metar_data;
 
-inline rolling_buffer_t altitude_history;
-inline rolling_buffer_t vario_history;
-inline rolling_buffer_t speed_history;
-inline rolling_buffer_t wind_history;
+extern rolling_buffer_t altitude_history;
+extern rolling_buffer_t vario_history;
+extern rolling_buffer_t speed_history;
+extern rolling_buffer_t wind_history;
 
-inline SemaphoreHandle_t dataMutex = NULL;
-inline SemaphoreHandle_t sdMutex = NULL;
-inline QueueHandle_t sensorQueue = NULL;
-inline TaskHandle_t metarTaskHandle = NULL;
+extern SemaphoreHandle_t dataMutex;
+extern SemaphoreHandle_t sdMutex;
+extern QueueHandle_t sensorQueue;
+extern TaskHandle_t metarTaskHandle;
 
-inline uint32_t system_start_time = 0;
-inline bool system_initialized = false;
-inline bool wifi_connected = false;
-inline bool metar_qnh_updated = false;
+extern uint32_t system_start_time;
+extern bool system_initialized;
+extern bool wifi_connected;
+extern bool metar_qnh_updated;
 
 static const char* MAIN_TAG = "MAIN";
 
