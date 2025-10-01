@@ -5,7 +5,7 @@
 //#define CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM 32
 //#define CONFIG_ESP_WIFI_RX_BA_WIN 16
 
-//#define DEBUG_MODE (0)
+#define DEBUG_MODE (1)
 #include <Arduino.h>
 #include <esp_log.h>
 #include "global.h"
@@ -32,6 +32,10 @@ uint32_t system_start_time = 0;
 bool system_initialized = false;
 bool wifi_connected = false;
 bool metar_qnh_updated = false;
+
+gps_data_t gps_data = {0};
+TaskHandle_t gpsTaskHandle = NULL;
+bool gps_initialized = false;
 
 // =============================================================================
 

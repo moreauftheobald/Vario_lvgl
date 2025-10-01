@@ -177,7 +177,7 @@ void bmp390_task(void* parameter) {
       static uint32_t last_debug = 0;
       if (current_time - last_debug > 5000) {
         ESP_LOGI("BMP390", "T=%.1fC P=%.1fhPa Alt=%.1fm Vario=%.1fm/s",  // CHANGE: %.2f -> %.1f
-                 temperature, pressure_hpa, altitude_qnh, vario_smooth);
+                 temperature, pressure_hpa, altitude_qnh, 1);
         last_debug = current_time;
       }
 #endif

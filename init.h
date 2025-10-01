@@ -12,6 +12,7 @@
 #include "startup_screen.h"
 #include "bmp390_task.h"
 #include "bno08x_task.h"
+#include "gps_task.h"
 #include "kalman_task.h"
 #include "ui.h"
 #include "ui_task.h"
@@ -171,7 +172,6 @@ bool init_display() {
 
   auto lcd_bus = lcd->getBus();
   if (lcd_bus && lcd_bus->getBasicAttributes().type == ESP_PANEL_BUS_TYPE_RGB) {
-    // Bounce buffer augmenté AVANT WiFi
     static_cast<BusRGB*>(lcd_bus)->configRGB_BounceBufferSize(lcd->getFrameWidth() * 30);
   }
 
@@ -207,27 +207,24 @@ bool init_wifi(const char* ssid, const char* password) {
   add_startup_log(tr(KEY_LOG_WIFI_ATTEMPT));
   update_startup_progress(35);
 
-  // Configuration WiFi rapide
   WiFi.mode(WIFI_OFF);
-  vTaskDelay(pdMS_TO_TICKS(50));  // 50ms suffisant
+  vTaskDelay(pdMS_TO_TICKS(50));
   esp_task_wdt_reset();
 
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
-  WiFi.setAutoReconnect(false);   // Pas besoin, on coupe apres METAR
-  esp_wifi_set_ps(WIFI_PS_NONE);  // Pas d'economie d'energie = connexion rapide
+  WiFi.setAutoReconnect(false);
+  esp_wifi_set_ps(WIFI_PS_NONE);
 
   vTaskDelay(pdMS_TO_TICKS(50));
   esp_task_wdt_reset();
 
-  // Connexion directe
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "Connexion...");
 #endif
 
   WiFi.begin(ssid, password);
 
-  // Attente reduite (10 secondes max)
   int attempts = 0;
   const int max_attempts = 10;
   char status_text[64];
@@ -238,22 +235,19 @@ bool init_wifi(const char* ssid, const char* password) {
     esp_task_wdt_reset();
 
 #ifdef DEBUG_MODE
-    if (attempts % 3 == 0) {  // Log toutes les 3 secondes
+    if (attempts % 3 == 0) {
       ESP_LOGI(INIT_TAG, "Tentative %d/%d - Status: %d", attempts, max_attempts, WiFi.status());
     }
 #endif
 
-    // Animation (update plus frequente pour compenser timeout reduit)
     uint8_t dots = (attempts % 4);
     snprintf(status_text, sizeof(status_text), "%s%.*s",
              tr(KEY_WIFI_CONNECTING), dots + 1, "....");
     update_startup_status(status_text);
 
-    // Progress bar adaptee au nouveau timeout
     update_startup_progress(35 + (attempts * 3));
   }
 
-  // Resultat
   if (WiFi.status() == WL_CONNECTED) {
     wifi_connected = true;
 
@@ -341,8 +335,6 @@ bool create_tasks() {
   add_startup_log("Tache UI OK");
   update_startup_progress(78);
 
-
-
   return true;
 }
 
@@ -381,11 +373,10 @@ bool init_system() {
     return false;
   }
 
-  // IMPORTANT: Attendre que LVGL soit vraiment pret
   vTaskDelay(pdMS_TO_TICKS(500));
   esp_task_wdt_reset();
 
-  // 3. MAINTENANT on peut creer l'ecran de demarrage
+  // 3. Ecran de demarrage
   create_startup_screen();
   update_startup_status(tr(KEY_INITIALIZATION));
   update_startup_progress(0);
@@ -426,41 +417,62 @@ bool init_system() {
     add_startup_log("BNO08x echec", true);
   }
 
-  // 8. WiFi
+  // 8. GPS
+#ifdef DEBUG_MODE
+  ESP_LOGI(INIT_TAG, "Init GPS...");
+#endif
+  add_startup_log("Init GPS");
+  update_startup_progress(42);
+
+  if (init_gps()) {
+    add_startup_log("GPS OK");
+  } else {
+    add_startup_log("GPS echec", true);
+  }
+
+  // 9. WiFi
   init_wifi(WIFI_SSID, WIFI_PASSWORD);
 
-  // 9. Taches
+  // 10. Taches
   if (!create_tasks()) {
     cleanup_buffers();
     return false;
   }
 
-  // 10. Tache BMP390
+  // 11. Tache BMP390
   if (bmp390_initialized) {
     if (create_bmp390_task()) {
       add_startup_log("Tache BMP390 OK");
     }
   }
 
-  // 11. Tache BNO08x
+  // 12. Tache BNO08x
   if (bno08x_initialized) {
     if (create_bno08x_task()) {
       add_startup_log("Tache BNO08x OK");
     }
   }
 
-  // Tache Kalman
-  if (bmp390_initialized && bno08x_initialized) {
-    if (create_kalman_task()) {
-      add_startup_log("Tache Kalman OK");
+  // 13. Tache GPS
+  if (gps_initialized) {
+    if (create_gps_task()) {
+      add_startup_log("Tache GPS OK");
       update_startup_progress(82);
     }
   }
 
-  // 12. Attendre METAR (5 secondes max)
+  // 14. Tache Kalman
+  if (bmp390_initialized && bno08x_initialized) {
+    if (create_kalman_task()) {
+      add_startup_log("Tache Kalman OK");
+      update_startup_progress(85);
+    }
+  }
+
+  // 15. Attendre METAR (5 secondes max)
   update_startup_status(tr(KEY_METAR_RETRIEVING));
   add_startup_log(tr(KEY_LOG_SEARCHING_METAR));
-  update_startup_progress(80);
+  update_startup_progress(88);
 
   uint32_t metar_wait = millis();
   while (!metar_qnh_updated && (millis() - metar_wait) < 5000) {
@@ -468,7 +480,7 @@ bool init_system() {
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 
-  // 13. Finalisation
+  // 16. Finalisation
   system_initialized = true;
   update_startup_progress(90);
 
@@ -488,7 +500,7 @@ bool init_system() {
            metar_qnh_updated ? "METAR" : "Standard");
 #endif
 
-  // 14. Animation fin (3 secondes)
+  // 17. Animation fin (3 secondes)
   uint32_t anim_start = millis();
   uint32_t wait_seconds = 3;
 
@@ -501,7 +513,6 @@ bool init_system() {
 
   add_startup_log(tr(KEY_LOG_STARTUP_SUCCESS));
 
-  // Compte a rebours
   char countdown_text[128];
   while ((millis() - anim_start) < (wait_seconds * 1000)) {
     uint32_t elapsed_s = (millis() - anim_start) / 1000;
@@ -521,7 +532,7 @@ bool init_system() {
   esp_task_wdt_reset();
   vTaskDelay(pdMS_TO_TICKS(200));
 
-  // 15. Transition vers interface principale
+  // 18. Transition vers interface principale
   esp_task_wdt_reset();
   destroy_startup_screen();
 
@@ -531,15 +542,14 @@ bool init_system() {
   esp_task_wdt_reset();
   show_main_interface();
 
-  // 16. Retirer watchdog de la loop
+  // 19. Retirer watchdog de la loop
   esp_task_wdt_delete(NULL);
 
-  // Couper WiFi pour libérer PSRAM et éviter conflit avec RGB LCD
+  // Couper WiFi pour liberer PSRAM
   if (wifi_connected) {
 #ifdef DEBUG_MODE
     ESP_LOGI(INIT_TAG, "WiFi maintenu actif (mode economie pour tiles OSM)");
 #endif
-    // Mode economie legere (garde connexion mais reduit conso)
     esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     WiFi.setSleep(true);
   }

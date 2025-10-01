@@ -26,7 +26,8 @@
 // =============================================================================
 
 // Configuration serie
-#define SERIAL_BAUD_RATE 115200
+#define SERIAL_BAUD_RATE 115200  // Debug serial
+#define GPS_BAUD_RATE 9600   
 
 // Configuration METAR
 #define METAR_QNH_DEFAULT 1013.25f
@@ -54,8 +55,17 @@
 #define BMP390_TASK_STACK 4096
 #define BMP390_TASK_PRIORITY 4
 #define BMP390_UPDATE_RATE_MS 200
-
 #define SEALEVELPRESSURE_HPA (1013.25)
+
+// GPS Configuration
+#define GPS_UART_NUM 1
+#define GPS_RX_PIN 44  // ESP_RXD
+#define GPS_TX_PIN 43  // ESP_TXD
+#define GPS_BAUD_RATE 9600
+#define GPS_UART_SEL_PIN 20  // Controle multiplexeur U13
+#define GPS_TASK_STACK 4096
+#define GPS_TASK_PRIORITY 3
+#define GPS_UPDATE_RATE_MS 1000 
 
 // =============================================================================
 // STRUCTURES DE DONNEES
@@ -100,6 +110,22 @@ typedef struct {
   uint16_t count;
 } rolling_buffer_t;
 
+// Structure GPS
+typedef struct {
+  float latitude;
+  float longitude;
+  float altitude_gps;
+  float speed_knots;
+  float speed_kmh;
+  float course;
+  uint8_t satellites;
+  bool fix;
+  uint8_t fix_quality;
+  uint32_t timestamp;
+  bool valid;
+} gps_data_t;
+
+
 // =============================================================================
 // VARIABLES GLOBALES (declarations externes)
 // =============================================================================
@@ -122,6 +148,10 @@ extern uint32_t system_start_time;
 extern bool system_initialized;
 extern bool wifi_connected;
 extern bool metar_qnh_updated;
+
+extern gps_data_t gps_data;
+extern TaskHandle_t gpsTaskHandle;
+extern bool gps_initialized;
 
 static const char* MAIN_TAG = "MAIN";
 
