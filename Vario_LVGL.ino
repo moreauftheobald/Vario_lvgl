@@ -9,6 +9,31 @@
 #include <Arduino.h>
 #include <esp_log.h>
 #include "global.h"
+
+// =============================================================================
+// DÉFINITION DES VARIABLES GLOBALES
+// =============================================================================
+
+flight_data_t flight_data = {0};
+metar_data_t metar_data = {0};
+
+rolling_buffer_t altitude_history = {0};
+rolling_buffer_t vario_history = {0};
+rolling_buffer_t speed_history = {0};
+rolling_buffer_t wind_history = {0};
+
+SemaphoreHandle_t dataMutex = NULL;
+SemaphoreHandle_t sdMutex = NULL;
+QueueHandle_t sensorQueue = NULL;
+TaskHandle_t metarTaskHandle = NULL;
+
+uint32_t system_start_time = 0;
+bool system_initialized = false;
+bool wifi_connected = false;
+bool metar_qnh_updated = false;
+
+// =============================================================================
+
 #include "init.h"
 #include "metar_task.h"
 

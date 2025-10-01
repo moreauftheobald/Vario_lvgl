@@ -84,7 +84,7 @@ void create_startup_screen() {
 }
 
 /**
- * @brief Ajoute une ligne de log a l'ecran
+ * @brief Ajoute une ligne de log a l'ecran (sécurisé)
  * @param log_text Texte a ajouter
  * @param is_error true si c'est une erreur (affichage en rouge)
  */
@@ -93,33 +93,54 @@ void add_startup_log(const char* log_text, bool is_error = false) {
 
   lvgl_port_lock(-1);
 
-  // Ajouter le nouveau log au buffer
+  // Formater la nouvelle ligne de manière sécurisée
   char new_line[256];
+  int written = 0;
+  
   if (is_error) {
-    snprintf(new_line, sizeof(new_line), tr(KEY_STATUS_ERROR), log_text);
-    strcat(new_line, "\n");
+    written = snprintf(new_line, sizeof(new_line), tr(KEY_STATUS_ERROR), log_text);
   } else {
-    snprintf(new_line, sizeof(new_line), tr(KEY_STATUS_OK), log_text);
-    strcat(new_line, "\n");
+    written = snprintf(new_line, sizeof(new_line), tr(KEY_STATUS_OK), log_text);
+  }
+  
+  // Ajouter \n de manière sécurisée
+  if (written > 0 && written < (int)sizeof(new_line) - 1) {
+    new_line[written] = '\n';
+    new_line[written + 1] = '\0';
   }
 
-  // Limiter la taille du buffer
+  // Vérifier l'espace disponible
   size_t current_len = strlen(startup_screen->log_buffer);
   size_t new_len = strlen(new_line);
+  size_t buffer_size = sizeof(startup_screen->log_buffer);
 
-  if (current_len + new_len >= sizeof(startup_screen->log_buffer) - 50) {
-    // Trouver la premiere ligne a supprimer
+  // Si pas assez d'espace, supprimer les anciennes lignes
+  while (current_len + new_len >= buffer_size - 10) {
     char* first_newline = strchr(startup_screen->log_buffer, '\n');
-    if (first_newline) {
+    if (first_newline && *(first_newline + 1) != '\0') {
       first_newline++;
-      memmove(startup_screen->log_buffer, first_newline, strlen(first_newline) + 1);
+      size_t remaining = strlen(first_newline);
+      memmove(startup_screen->log_buffer, first_newline, remaining + 1);
+      current_len = remaining;
     } else {
-      // Si pas de newline trouvee, vider partiellement
-      snprintf(startup_screen->log_buffer, sizeof(startup_screen->log_buffer), "%s\n", tr(KEY_SYSTEM_LOGS));
+      // Buffer corrompu ou vide, réinitialiser
+      snprintf(startup_screen->log_buffer, buffer_size, "%s\n", tr(KEY_SYSTEM_LOGS));
+      current_len = strlen(startup_screen->log_buffer);
+      break;
     }
   }
 
-  strcat(startup_screen->log_buffer, new_line);
+  // Ajouter la nouvelle ligne de manière sécurisée
+  size_t space_left = buffer_size - current_len - 1;
+  if (space_left > new_len) {
+    strncat(startup_screen->log_buffer, new_line, space_left);
+  } else {
+    // Dernier recours: réinitialiser complètement
+    snprintf(startup_screen->log_buffer, buffer_size, "%s\n%s", 
+             tr(KEY_SYSTEM_LOGS), new_line);
+  }
+
+  // Mettre à jour l'affichage
   lv_label_set_text(startup_screen->log_label, startup_screen->log_buffer);
 
   // Changer couleur selon le type
