@@ -10,9 +10,14 @@
 // =============================================================================
 
 static Adafruit_BMP3XX bmp;
-static TwoWire I2C_BMP = TwoWire(1);  // Wire1
+static TwoWire I2C_BMP = TwoWire(1);
 static TaskHandle_t bmp390TaskHandle = NULL;
 static bool bmp390_initialized = false;
+
+// Variables pour calcul du vario
+static float prev_altitude = 0.0f;
+static uint32_t prev_time = 0;
+static bool first_reading = true;
 
 // =============================================================================
 // FONCTIONS BMP390
@@ -27,7 +32,6 @@ bool init_bmp390() {
            BMP390_I2C_SDA, BMP390_I2C_SCL);
 #endif
 
-  // Initialiser Wire1
   if (!I2C_BMP.begin(BMP390_I2C_SDA, BMP390_I2C_SCL, BMP390_I2C_FREQ)) {
 #ifdef DEBUG_MODE
     ESP_LOGE("BMP390", "Erreur init Wire1");
@@ -37,7 +41,6 @@ bool init_bmp390() {
 
   vTaskDelay(pdMS_TO_TICKS(100));
 
-  // Tentative connexion BMP390 (0x77 par defaut)
   if (!bmp.begin_I2C(0x77, &I2C_BMP)) {
 #ifdef DEBUG_MODE
     ESP_LOGW("BMP390", "Essai adresse 0x76...");
@@ -50,7 +53,6 @@ bool init_bmp390() {
     }
   }
 
-  // Configuration
   bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_2X);
   bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
   bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
@@ -61,7 +63,31 @@ bool init_bmp390() {
 #endif
 
   bmp390_initialized = true;
+  first_reading = true;
   return true;
+}
+
+/**
+ * @brief Calcule le vario (derivee de l'altitude)
+ */
+float calculate_vario(float current_altitude, uint32_t current_time) {
+  if (first_reading) {
+    prev_altitude = current_altitude;
+    prev_time = current_time;
+    first_reading = false;
+    return 0.0f;
+  }
+
+  uint32_t dt = current_time - prev_time;
+  if (dt == 0) return 0.0f;
+
+  float dh = current_altitude - prev_altitude;
+  float vario = (dh * 1000.0f) / dt;  // Conversion en m/s
+
+  prev_altitude = current_altitude;
+  prev_time = current_time;
+
+  return vario;
 }
 
 /**
@@ -82,15 +108,29 @@ void bmp390_task(void* parameter) {
       float temperature = bmp.temperature;
       float pressure_hpa = bmp.pressure / 100.0f;
       float altitude_qne = bmp.readAltitude(SEALEVELPRESSURE_HPA);
-      float altitude_qnh = pressure_to_altitude(pressure_hpa, flight_data.qnh_pressure);
       
-      // Mise a jour donnees globales
       if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        
+        float altitude_qnh = pressure_to_altitude(pressure_hpa, flight_data.qnh_pressure);
+        float vario = calculate_vario(altitude_qnh, current_time);
+        
         flight_data.temperature = temperature;
         flight_data.pressure_hpa = pressure_hpa;
         flight_data.altitude_qne = altitude_qne;
         flight_data.altitude_qnh = altitude_qnh;
+        flight_data.vario_ms = vario;
         flight_data.current_time = current_time;
+        
+        // Calcul QFE (hauteur sol)
+        if (flight_data.takeoff_set) {
+          flight_data.altitude_qfe = altitude_qnh - flight_data.takeoff_altitude;
+        } else {
+          flight_data.altitude_qfe = 0.0f;
+        }
+        
+        // Ajout aux buffers circulaires
+        add_to_buffer(&altitude_history, altitude_qnh);
+        add_to_buffer(&vario_history, vario);
         
         xSemaphoreGive(dataMutex);
       }
@@ -98,8 +138,8 @@ void bmp390_task(void* parameter) {
 #ifdef DEBUG_MODE
       static uint32_t last_debug = 0;
       if (current_time - last_debug > 5000) {
-        ESP_LOGI("BMP390", "T=%.1fC P=%.1fhPa Alt=%.1fm", 
-                 temperature, pressure_hpa, altitude_qnh);
+        ESP_LOGI("BMP390", "T=%.1fC P=%.1fhPa Alt=%.1fm Vario=%.2fm/s", 
+                 temperature, pressure_hpa, altitude_qnh, vario);
         last_debug = current_time;
       }
 #endif
@@ -149,6 +189,36 @@ void stop_bmp390_task() {
   if (bmp390TaskHandle != NULL) {
     vTaskDelete(bmp390TaskHandle);
     bmp390TaskHandle = NULL;
+  }
+}
+
+/**
+ * @brief Enregistre l'altitude de decollage
+ */
+void set_takeoff_altitude() {
+  if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+    flight_data.takeoff_altitude = flight_data.altitude_qnh;
+    flight_data.takeoff_set = true;
+    xSemaphoreGive(dataMutex);
+    
+#ifdef DEBUG_MODE
+    ESP_LOGI("BMP390", "Altitude decollage: %.1fm", flight_data.takeoff_altitude);
+#endif
+  }
+}
+
+/**
+ * @brief Reinitialise l'altitude de decollage
+ */
+void reset_takeoff_altitude() {
+  if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+    flight_data.takeoff_altitude = 0.0f;
+    flight_data.takeoff_set = false;
+    xSemaphoreGive(dataMutex);
+    
+#ifdef DEBUG_MODE
+    ESP_LOGI("BMP390", "Altitude decollage reinit");
+#endif
   }
 }
 

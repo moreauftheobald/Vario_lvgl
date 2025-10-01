@@ -12,6 +12,7 @@
 #include "startup_screen.h"
 #include "bmp390_task.h"
 #include "ui.h"
+#include "ui_task.h"
 #include <esp_task_wdt.h>
 
 using namespace esp_panel::drivers;
@@ -45,6 +46,10 @@ void init_data_structures() {
   memset(&metar_data, 0, sizeof(metar_data_t));
 
   flight_data.qnh_pressure = METAR_QNH_DEFAULT;
+  flight_data.vario_ms = 0.0f;
+  flight_data.altitude_qfe = 0.0f;
+  flight_data.takeoff_altitude = 0.0f;
+  flight_data.takeoff_set = false;
 
 #ifdef DEBUG_MODE
   ESP_LOGI(INIT_TAG, "Structures OK");
@@ -207,9 +212,9 @@ bool init_wifi(const char* ssid, const char* password) {
 
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
-  WiFi.setAutoReconnect(false);  // Pas besoin, on coupe apres METAR
+  WiFi.setAutoReconnect(false);   // Pas besoin, on coupe apres METAR
   esp_wifi_set_ps(WIFI_PS_NONE);  // Pas d'economie d'energie = connexion rapide
-  
+
   vTaskDelay(pdMS_TO_TICKS(50));
   esp_task_wdt_reset();
 
@@ -241,7 +246,7 @@ bool init_wifi(const char* ssid, const char* password) {
     snprintf(status_text, sizeof(status_text), "%s%.*s",
              tr(KEY_WIFI_CONNECTING), dots + 1, "....");
     update_startup_status(status_text);
-    
+
     // Progress bar adaptee au nouveau timeout
     update_startup_progress(35 + (attempts * 3));
   }
@@ -310,6 +315,31 @@ bool create_tasks() {
 #endif
   add_startup_log(tr(KEY_LOG_METAR_TASK));
   update_startup_progress(75);
+
+  // Tache UI
+  result = xTaskCreate(
+    ui_task,
+    "UITask",
+    UI_TASK_STACK,
+    NULL,
+    UI_TASK_PRIORITY,
+    &uiTaskHandle);
+
+  if (result != pdPASS) {
+#ifdef DEBUG_MODE
+    ESP_LOGE(INIT_TAG, "Erreur tache UI");
+#endif
+    add_startup_log("Erreur tache UI", true);
+    return false;
+  }
+
+#ifdef DEBUG_MODE
+  ESP_LOGI(INIT_TAG, "Tache UI OK");
+#endif
+  add_startup_log("Tache UI OK");
+  update_startup_progress(78);
+
+
 
   return true;
 }

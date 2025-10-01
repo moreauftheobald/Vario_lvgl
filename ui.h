@@ -10,6 +10,13 @@
 // INTERFACE UTILISATEUR PRINCIPALE
 // =============================================================================
 
+static lv_obj_t* main_container = NULL;
+static lv_obj_t* data_label = NULL;
+static lv_obj_t* metar_label = NULL;
+
+// Declaration forward
+void update_main_interface();
+
 /**
  * @brief Affiche l'interface principale du variometre
  */
@@ -18,7 +25,7 @@ void show_main_interface() {
 
   lv_obj_clean(lv_scr_act());
 
-  lv_obj_t* main_container = lv_obj_create(lv_scr_act());
+  main_container = lv_obj_create(lv_scr_act());
   lv_obj_set_size(main_container, LV_HOR_RES, LV_VER_RES);
   lv_obj_set_pos(main_container, 0, 0);
   lv_obj_clear_flag(main_container, LV_OBJ_FLAG_SCROLLABLE);
@@ -34,40 +41,71 @@ void show_main_interface() {
   lv_obj_set_style_text_color(title, lv_color_hex(0x00ff88), 0);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
 
-  // Donnees BMP390
-  lv_obj_t* bmp_label = lv_label_create(main_container);
-  char bmp_text[256];
-  
-  snprintf(bmp_text, sizeof(bmp_text),
-           "Temperature: %.1f C\nPression: %.1f hPa\nAltitude QNH: %.0f m\nAltitude QNE: %.0f m",
-           flight_data.temperature,
-           flight_data.pressure_hpa,
-           flight_data.altitude_qnh,
-           flight_data.altitude_qne);
+  // Zone de donnees principales
+  data_label = lv_label_create(main_container);
+  lv_obj_set_width(data_label, LV_HOR_RES - 40);
+  lv_label_set_long_mode(data_label, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_font(data_label, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_color(data_label, lv_color_hex(0xffffff), 0);
+  lv_obj_align(data_label, LV_ALIGN_TOP_LEFT, 0, 50);
 
-  lv_label_set_text(bmp_label, bmp_text);
-  lv_obj_set_style_text_font(bmp_label, &lv_font_montserrat_16, 0);
-  lv_obj_set_style_text_color(bmp_label, lv_color_hex(0xffffff), 0);
-  lv_obj_align(bmp_label, LV_ALIGN_TOP_LEFT, 0, 0);
-
-  // METAR
-  lv_obj_t* metar_label = lv_label_create(main_container);
+  // Zone METAR
+  metar_label = lv_label_create(main_container);
   lv_obj_set_width(metar_label, LV_HOR_RES - 40);
   lv_label_set_long_mode(metar_label, LV_LABEL_LONG_WRAP);
-  
-  char metar_text[300];
-  snprintf(metar_text, sizeof(metar_text), 
-           "QNH: %.1f hPa (%s)\nMETAR: %s",
-           flight_data.qnh_pressure,
-           metar_data.station_id,
-           metar_data.raw_metar);
-  
-  lv_label_set_text(metar_label, metar_text);
   lv_obj_set_style_text_font(metar_label, &lv_font_montserrat_12, 0);
   lv_obj_set_style_text_color(metar_label, lv_color_hex(0x88ff88), 0);
-  lv_obj_align(metar_label, LV_ALIGN_TOP_LEFT, 0, 150);
+  lv_obj_align(metar_label, LV_ALIGN_BOTTOM_LEFT, 0, -10);
 
   lvgl_port_unlock();
+  
+  // Premiere mise a jour
+  update_main_interface();
+}
+
+/**
+ * @brief Met a jour les donnees affichees
+ */
+void update_main_interface() {
+  if (!data_label || !metar_label) return;
+  
+  if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+    char data_text[512];
+    char metar_text[256];
+    
+    // Formatage des donnees de vol
+    const char* vario_sign = (flight_data.vario_ms >= 0) ? "+" : "";
+    
+    snprintf(data_text, sizeof(data_text),
+             "Temperature: %.1f C\n"
+             "Pression: %.1f hPa\n"
+             "Altitude QNH: %.0f m\n"
+             "Altitude QNE: %.0f m\n"
+             "Hauteur sol: %.0f m\n"
+             "Vario: %s%.2f m/s",
+             flight_data.temperature,
+             flight_data.pressure_hpa,
+             flight_data.altitude_qnh,
+             flight_data.altitude_qne,
+             flight_data.altitude_qfe,
+             vario_sign,
+             flight_data.vario_ms);
+    
+    // Formatage METAR
+    snprintf(metar_text, sizeof(metar_text), 
+             "QNH: %.1f hPa (%s)\nMETAR: %s",
+             flight_data.qnh_pressure,
+             metar_data.station_id,
+             metar_data.raw_metar);
+    
+    xSemaphoreGive(dataMutex);
+    
+    // Mise a jour LVGL
+    lvgl_port_lock(-1);
+    lv_label_set_text(data_label, data_text);
+    lv_label_set_text(metar_label, metar_text);
+    lvgl_port_unlock();
+  }
 }
 
 /**
@@ -77,7 +115,6 @@ void show_test_screen() {
   lvgl_port_lock(-1);
 
   lv_obj_clean(lv_scr_act());
-
   lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), 0);
   lv_obj_set_style_bg_opa(lv_scr_act(), LV_OPA_COVER, 0);
 
@@ -93,13 +130,6 @@ void show_test_screen() {
   lv_obj_center(label);
 
   lvgl_port_unlock();
-}
-
-/**
- * @brief Met a jour les donnees affichees
- */
-void update_main_interface() {
-  // TODO: Mise a jour dynamique
 }
 
 #endif  // UI_H

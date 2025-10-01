@@ -17,9 +17,9 @@
 // CONFIGURATION WIFI
 // =============================================================================
 
-#define WIFI_SSID "NAWAK"           // REMPLACER
-#define WIFI_PASSWORD "1234567890"    // REMPLACER
-#define WIFI_CONNECT_TIMEOUT 30000      // 30 secondes
+#define WIFI_SSID "NAWAK"
+#define WIFI_PASSWORD "1234567890"
+#define WIFI_CONNECT_TIMEOUT 30000
 
 // =============================================================================
 // CONSTANTES
@@ -40,20 +40,20 @@
 #define WIND_HISTORY_SIZE 50
 
 // Position par defaut : Hayange, Moselle, France
-#define DEFAULT_LATITUDE 49.3283  // Hayange latitude
-#define DEFAULT_LONGITUDE 6.0627  // Hayange longitude
+#define DEFAULT_LATITUDE 49.3283
+#define DEFAULT_LONGITUDE 6.0627
 
 // API METAR
 #define METAR_API_URL "https://aviationweather.gov/api/data/metar"
 #define METAR_TIMEOUT_MS 10000
 
-//BMP 390 
+// BMP390
 #define BMP390_I2C_SDA 8
 #define BMP390_I2C_SCL 9
 #define BMP390_I2C_FREQ 400000
 #define BMP390_TASK_STACK 4096
 #define BMP390_TASK_PRIORITY 4
-#define BMP390_UPDATE_RATE_MS 100  // 10Hz
+#define BMP390_UPDATE_RATE_MS 100
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
@@ -64,7 +64,7 @@
 // Structure METAR
 typedef struct {
   char station_id[5];
-  char raw_metar[256];  // AJOUTER CETTE LIGNE
+  char raw_metar[256];
   float qnh_hpa;
   float distance_km;
   uint32_t observation_time;
@@ -75,9 +75,13 @@ typedef struct {
 typedef struct {
   float altitude_qne;
   float altitude_qnh;
+  float altitude_qfe;
   float qnh_pressure;
   float temperature;
   float pressure_hpa;
+  float vario_ms;
+  float takeoff_altitude;
+  bool takeoff_set;
   uint32_t current_time;
 } flight_data_t;
 
@@ -90,7 +94,7 @@ typedef struct {
 } rolling_buffer_t;
 
 // =============================================================================
-// VARIABLES GLOBALES (déclarations externes)
+// VARIABLES GLOBALES (declarations externes)
 // =============================================================================
 
 extern flight_data_t flight_data;
