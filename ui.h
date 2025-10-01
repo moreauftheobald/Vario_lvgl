@@ -3,6 +3,7 @@
 
 #include "global.h"
 #include "lang.h"
+#include "bno08x_task.h"  // AJOUTER CETTE LIGNE
 #include <lvgl.h>
 #include "lvgl_v8_port.h"
 
@@ -12,6 +13,7 @@
 
 static lv_obj_t* main_container = NULL;
 static lv_obj_t* data_label = NULL;
+static lv_obj_t* imu_label = NULL;  // NOUVELLE ZONE POUR IMU
 static lv_obj_t* metar_label = NULL;
 
 // Declaration forward
@@ -41,13 +43,21 @@ void show_main_interface() {
   lv_obj_set_style_text_color(title, lv_color_hex(0x00ff88), 0);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
 
-  // Zone de donnees principales
+  // Zone de donnees principales (BMP390)
   data_label = lv_label_create(main_container);
   lv_obj_set_width(data_label, LV_HOR_RES - 40);
   lv_label_set_long_mode(data_label, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_text_font(data_label, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_font(data_label, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(data_label, lv_color_hex(0xffffff), 0);
   lv_obj_align(data_label, LV_ALIGN_TOP_LEFT, 0, 50);
+
+  // Zone IMU (BNO08x) - NOUVEAU
+  imu_label = lv_label_create(main_container);
+  lv_obj_set_width(imu_label, LV_HOR_RES - 40);
+  lv_label_set_long_mode(imu_label, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_font(imu_label, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_color(imu_label, lv_color_hex(0xffaa00), 0);  // Orange
+  lv_obj_align(imu_label, LV_ALIGN_TOP_LEFT, 0, 180);
 
   // Zone METAR
   metar_label = lv_label_create(main_container);
@@ -58,7 +68,7 @@ void show_main_interface() {
   lv_obj_align(metar_label, LV_ALIGN_BOTTOM_LEFT, 0, -10);
 
   lvgl_port_unlock();
-  
+
   // Premiere mise a jour
   update_main_interface();
 }
@@ -66,23 +76,28 @@ void show_main_interface() {
 /**
  * @brief Met a jour les donnees affichees
  */
+/**
+ * @brief Met a jour les donnees affichees
+ */
 void update_main_interface() {
-  if (!data_label || !metar_label) return;
-  
+  if (!data_label || !imu_label || !metar_label) return;
+
   if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
     char data_text[512];
+    char imu_text[512];
     char metar_text[256];
-    
-    // Formatage des donnees de vol
+
+    // Formatage des donnees de vol (BMP390)
     const char* vario_sign = (flight_data.vario_ms >= 0) ? "+" : "";
-    
+
     snprintf(data_text, sizeof(data_text),
+             "=== BMP390 ===\n"
              "Temperature: %.1f C\n"
              "Pression: %.1f hPa\n"
              "Altitude QNH: %.0f m\n"
              "Altitude QNE: %.0f m\n"
              "Hauteur sol: %.0f m\n"
-             "Vario: %s%.2f m/s",
+             "Vario BMP: %s%.2f m/s",
              flight_data.temperature,
              flight_data.pressure_hpa,
              flight_data.altitude_qnh,
@@ -90,19 +105,40 @@ void update_main_interface() {
              flight_data.altitude_qfe,
              vario_sign,
              flight_data.vario_ms);
-    
+
+    // Formatage donnees IMU (BNO08x)
+    bno08x_data_t imu_data;
+    if (get_bno08x_data(&imu_data)) {
+      const char* vario_imu_sign = (imu_data.vario_imu >= 0) ? "+" : "";
+
+      snprintf(imu_text, sizeof(imu_text),
+               "=== BNO08x IMU ===\n"
+               "Vario IMU: %s%.2f m/s\n"
+               "G-metre: %.2f G\n"
+               "Accel verticale: %.2f m/s2",
+               vario_imu_sign,
+               imu_data.vario_imu,
+               imu_data.g_force,
+               imu_data.vertical_accel);
+    } else {
+      snprintf(imu_text, sizeof(imu_text),
+               "=== BNO08x IMU ===\n"
+               "En attente donnees...");
+    }
+
     // Formatage METAR
-    snprintf(metar_text, sizeof(metar_text), 
+    snprintf(metar_text, sizeof(metar_text),
              "QNH: %.1f hPa (%s)\nMETAR: %s",
              flight_data.qnh_pressure,
              metar_data.station_id,
              metar_data.raw_metar);
-    
+
     xSemaphoreGive(dataMutex);
-    
+
     // Mise a jour LVGL
     lvgl_port_lock(-1);
     lv_label_set_text(data_label, data_text);
+    lv_label_set_text(imu_label, imu_text);
     lv_label_set_text(metar_label, metar_text);
     lvgl_port_unlock();
   }

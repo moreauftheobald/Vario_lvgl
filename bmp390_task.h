@@ -108,11 +108,13 @@ void bmp390_task(void* parameter) {
       float temperature = bmp.temperature;
       float pressure_hpa = bmp.pressure / 100.0f;
       float altitude_qne = bmp.readAltitude(SEALEVELPRESSURE_HPA);
+      float altitude_qnh = 0.0f;  // DECLARE ICI
+      float vario = 0.0f;          // DECLARE ICI
       
       if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         
-        float altitude_qnh = pressure_to_altitude(pressure_hpa, flight_data.qnh_pressure);
-        float vario = calculate_vario(altitude_qnh, current_time);
+        altitude_qnh = pressure_to_altitude(pressure_hpa, flight_data.qnh_pressure);
+        vario = calculate_vario(altitude_qnh, current_time);
         
         flight_data.temperature = temperature;
         flight_data.pressure_hpa = pressure_hpa;

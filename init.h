@@ -11,6 +11,7 @@
 #include "metar_task.h"
 #include "startup_screen.h"
 #include "bmp390_task.h"
+#include "bno08x_task.h"
 #include "ui.h"
 #include "ui_task.h"
 #include <esp_task_wdt.h>
@@ -411,23 +412,43 @@ bool init_system() {
     add_startup_log("BMP390 echec", true);
   }
 
-  // 7. WiFi
+  // 7. Capteur BNO08x
+#ifdef DEBUG_MODE
+  ESP_LOGI(INIT_TAG, "Init BNO08x...");
+#endif
+  add_startup_log("Init BNO08x");
+  update_startup_progress(38);
+
+  if (init_bno08x()) {
+    add_startup_log("BNO08x OK");
+  } else {
+    add_startup_log("BNO08x echec", true);
+  }
+
+  // 8. WiFi
   init_wifi(WIFI_SSID, WIFI_PASSWORD);
 
-  // 8. Taches
+  // 9. Taches
   if (!create_tasks()) {
     cleanup_buffers();
     return false;
   }
 
-  // 9. Tache BMP390
+  // 10. Tache BMP390
   if (bmp390_initialized) {
     if (create_bmp390_task()) {
       add_startup_log("Tache BMP390 OK");
     }
   }
 
-  // 10. Attendre METAR (5 secondes max)
+  // 11. Tache BNO08x
+  if (bno08x_initialized) {
+    if (create_bno08x_task()) {
+      add_startup_log("Tache BNO08x OK");
+    }
+  }
+  
+  // 12. Attendre METAR (5 secondes max)
   update_startup_status(tr(KEY_METAR_RETRIEVING));
   add_startup_log(tr(KEY_LOG_SEARCHING_METAR));
   update_startup_progress(80);
@@ -438,7 +459,7 @@ bool init_system() {
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 
-  // 11. Finalisation
+  // 13. Finalisation
   system_initialized = true;
   update_startup_progress(90);
 
@@ -458,7 +479,7 @@ bool init_system() {
            metar_qnh_updated ? "METAR" : "Standard");
 #endif
 
-  // 12. Animation fin (3 secondes)
+  // 14. Animation fin (3 secondes)
   uint32_t anim_start = millis();
   uint32_t wait_seconds = 3;
 
@@ -491,7 +512,7 @@ bool init_system() {
   esp_task_wdt_reset();
   vTaskDelay(pdMS_TO_TICKS(200));
 
-  // 13. Transition vers interface principale
+  // 15. Transition vers interface principale
   esp_task_wdt_reset();
   destroy_startup_screen();
 
@@ -501,7 +522,7 @@ bool init_system() {
   esp_task_wdt_reset();
   show_main_interface();
 
-  // 14. Retirer watchdog de la loop
+  // 16. Retirer watchdog de la loop
   esp_task_wdt_delete(NULL);
 
   // Couper WiFi pour libérer PSRAM et éviter conflit avec RGB LCD
